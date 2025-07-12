@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String             @id @unique // this is the same id provided by Kinde
+  email          String             @unique
+  createdAt      DateTime           @default(now())
+  displayName    String             @db.VarChar(255)
+  color          String             @db.VarChar(255)
+  events         Event[]            @relation("owner")
+  participations EventParticipant[]
+  questions      Question[]
+  upvotes        QuestionUpVote[]
+  pollVotes      PollVote[]
+  bookmarks      Event[]
+  notifications  Notification[]
+}
+
+enum NotificationType {
+  NEW_QUESTION
+  QUESTION_UPVOTE
+  QUESTION_RESOLVED
+  QUESTION_PINNED
+  POLL_CLOSED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  createdAt DateTime         @default(now())
+  read      Boolean          @default(false)
+  seen      Boolean          @default(false)
+  type      NotificationType
+
+  event   Event  @relation(fields: [eventId], references: [id])
+  eventId String
+
+  question   Question? @relation(fields: [questionId], references: [id])
+  questionId String?
+
+  poll   Poll?   @relation(fields: [pollId], references: [id])
+  pollId String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+}
+
+model Event {
+  id               String             @id @default(cuid()) @map("_id")
+  displayName      String             @db.VarChar(100)
+  slug             String             @db.VarChar(255)
+  shortDescription String?            @db.VarChar(255)
+  createdAt        DateTime           @default(now())
+  participants     EventParticipant[]
+  questions        Question[]
+  polls            Poll[]
+  bookmarkedBy     User[]
+  notifications    Notification[]
+
+  owner   User   @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  @@unique([slug, ownerId]) // an Event is uniquely identified by the ownerId and the event slug
+  @@index([slug, ownerId])
+}
+
+model EventParticipant {
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  @@id([eventId, userId])
+}
+
+model Question {
+  id            String           @id @default(cuid())
+  createdAt     DateTime         @default(now())
+  body          String           @db.VarChar(2500)
+  isPinned      Boolean          @default(false)
+  isResolved    Boolean          @default(false)
+  upvotes       QuestionUpVote[]
+  notifications Notification[]
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId String
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+}
+
+model QuestionUpVote {
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  questionId String
+
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  @@id([authorId, questionId])
+}
+
+model Poll {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  body          String         @db.VarChar(500)
+  isLive        Boolean        @default(true)
+  options       PollOption[]
+  votes         PollVote[]
+  notifications Notification[]
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId String
+}
+
+model PollOption {
+  id    String     @id @default(cuid())
+  index Int
+  body  String     @db.VarChar(100)
+  votes PollVote[]
+
+  poll   Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  pollId String
+
+  @@unique([pollId, index])
+  @@index([pollId, index])
+}
+
+model PollVote {
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  pollOption   PollOption @relation(fields: [pollOptionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  pollOptionId String
+
+  poll   Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  pollId String
+
+  @@id([authorId, pollId]) // an user can only vote a single poll option one time.
+}
