@@ -88,7 +88,7 @@ The description editor supports:
 
 ## 📐 Mockup
 
-
+![Alt text](mockup.png)
 
 ---
 
